@@ -1,167 +1,106 @@
-package com.example.speedIndicator;
+package com.example.speedIndicator
 
-import android.app.KeyguardManager;
-import android.app.Service;
-import android.content.BroadcastReceiver;
-import android.content.Context;
-import android.content.Intent;
-import android.content.IntentFilter;
-import android.net.TrafficStats;
-import android.os.Bundle;
-import android.os.Handler;
-import android.os.IBinder;
+import android.app.Activity
+import android.app.Service
+import android.content.Intent
+import android.net.TrafficStats
+import android.os.Binder
+import android.os.Handler
+import android.os.IBinder
 
-import com.example.speedIndicator.settings.SettingsActivity;
-
-public final class IndicatorService extends Service {
-    private KeyguardManager mKeyguardManager;
-
-    private long mLastRxBytes = 0;
-    private long mLastTxBytes = 0;
-    private long mLastTime = 0;
-
-    private Speed mSpeed;
-
-    private IndicatorNotification mIndicatorNotification;
-
-    private boolean mNotificationCreated = false;
-
-    private boolean mNotificationOnLockScreen;
-
-    final private Handler mHandler = new Handler();
-
-    private final Runnable mHandlerRunnable = new Runnable() {
-        @Override
-        public void run() {
-            long currentRxBytes = TrafficStats.getTotalRxBytes();
-            long currentTxBytes = TrafficStats.getTotalTxBytes();
-            long usedRxBytes = currentRxBytes - mLastRxBytes;
-            long usedTxBytes = currentTxBytes - mLastTxBytes;
-            long currentTime = System.currentTimeMillis();
-            long usedTime = currentTime - mLastTime;
-
-            mLastRxBytes = currentRxBytes;
-            mLastTxBytes = currentTxBytes;
-            mLastTime = currentTime;
-
-            mSpeed.calcSpeed(usedTime, usedRxBytes, usedTxBytes);
-
-            mIndicatorNotification.updateNotification(mSpeed);
-
-            mHandler.postDelayed(this, 1000);
-        }
-    };
-
-    private final BroadcastReceiver mScreenBroadcastReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            if (intent == null || intent.getAction() == null) {
-                return;
-            }
-
-            if (intent.getAction().equals(Intent.ACTION_SCREEN_OFF)) {
-                pauseNotifying();
-                if (!mNotificationOnLockScreen) {
-                    mIndicatorNotification.hideNotification();
-                }
-                mIndicatorNotification.updateNotification(mSpeed);
-            } else if (intent.getAction().equals(Intent.ACTION_SCREEN_ON)) {
-                if (mNotificationOnLockScreen || !mKeyguardManager.isKeyguardLocked()) {
-                    mIndicatorNotification.showNotification();
-                    restartNotifying();
-                }
-            } else if (intent.getAction().equals(Intent.ACTION_USER_PRESENT)) {
-                mIndicatorNotification.showNotification();
-                restartNotifying();
-            }
-        }
-    };
-
-    @Override
-    public IBinder onBind(Intent intent) {
-        return null;
+class IndicatorService : Service() {
+  private var speedUpdateCallback: SpeedUpdateCallback? = null
+  private var mLastRxBytes: Long = 0
+  private var mLastTxBytes: Long = 0
+  private var mLastTime: Long = 0
+  private var mSpeed: Speed? = null
+  private val mBinder:IBinder = SpeedServiceBinder()
+  private val mHandler = Handler()
+  private val mHandlerRunnable: Runnable = object : Runnable {
+    override fun run() {
+      val currentRxBytes = TrafficStats.getTotalRxBytes()
+      val currentTxBytes = TrafficStats.getTotalTxBytes()
+      val usedRxBytes = currentRxBytes - mLastRxBytes
+      val usedTxBytes = currentTxBytes - mLastTxBytes
+      val currentTime = System.currentTimeMillis()
+      val usedTime = currentTime - mLastTime
+      mLastRxBytes = currentRxBytes
+      mLastTxBytes = currentTxBytes
+      mLastTime = currentTime
+      mSpeed!!.calcSpeed(usedTime, usedRxBytes, usedTxBytes)
+      speedUpdateCallback!!.onSpeedUpdate(mSpeed!!)
+      mHandler.postDelayed(this,500)
     }
+  }
 
-    public void onDestroy() {
-        super.onDestroy();
-
-        pauseNotifying();
-        unregisterReceiver(mScreenBroadcastReceiver);
-
-        removeNotification();
+  inner class SpeedServiceBinder : Binder() {
+    fun getService():IndicatorService{
+      return this@IndicatorService
     }
-
-    public void onCreate() {
-        super.onCreate();
-
-        mLastRxBytes = TrafficStats.getTotalRxBytes();
-        mLastTxBytes = TrafficStats.getTotalTxBytes();
-        mLastTime = System.currentTimeMillis();
-
-        mSpeed = new Speed(this);
-
-        mKeyguardManager = (KeyguardManager)getSystemService(Context.KEYGUARD_SERVICE);
-
-        mIndicatorNotification = new IndicatorNotification(this);
+    fun restartNotifying() {
+      mHandler.removeCallbacks(mHandlerRunnable)
+      mHandler.post(mHandlerRunnable)
     }
+  }
 
-    @Override
-    public int onStartCommand(Intent intent, int flags, int startId) {
-        handleConfigChange(intent.getExtras());
+  override fun onBind(intent: Intent): IBinder {
+    return mBinder
+  }
 
-        createNotification();
+  override fun onUnbind(intent: Intent): Boolean {
+    pauseNotifying()
+    return false
+  }
 
-        restartNotifying();
+  override fun onCreate() {
+    super.onCreate()
+    mSpeed= Speed(this)
+  }
 
-        return START_REDELIVER_INTENT;
-    }
+  override fun onDestroy() {
+    pauseNotifying()
+    super.onDestroy()
+  }
 
-    private void createNotification() {
-        if (!mNotificationCreated) {
-            mIndicatorNotification.start(this);
-            mNotificationCreated = true;
-        }
-    }
+  //    @Override
+  //    public int onStartCommand(Intent intent, int flags, int startId) {
+  //        handleConfigChange(intent.getExtras());
+  //
+  //        createNotification();
+  //
+  //        restartNotifying();
+  //
+  //        return START_REDELIVER_INTENT;
+  //    }
 
-    private void removeNotification() {
-        if (mNotificationCreated) {
-            mIndicatorNotification.stop(this);
-            mNotificationCreated = false;
-        }
-    }
+  private fun pauseNotifying() {
+    mHandler.removeCallbacks(mHandlerRunnable)
+  }
 
-    private void pauseNotifying() {
-        mHandler.removeCallbacks(mHandlerRunnable);
-    }
+//  private fun handleConfigChange(config: Bundle) {
+//    // Show/Hide on lock screen
+//    val screenBroadcastIntentFilter = IntentFilter()
+//    screenBroadcastIntentFilter.addAction(Intent.ACTION_SCREEN_ON)
+//    screenBroadcastIntentFilter.addAction(Intent.ACTION_SCREEN_OFF)
+//    mNotificationOnLockScreen = config.getBoolean(SettingsActivity.KEY_NOTIFICATION_ON_LOCK_SCREEN, false)
+//    if (!mNotificationOnLockScreen) {
+//      screenBroadcastIntentFilter.addAction(Intent.ACTION_USER_PRESENT)
+//      screenBroadcastIntentFilter.priority = 999
+//    }
+//    if (mNotificationCreated) {
+//      unregisterReceiver(mScreenBroadcastReceiver)
+//    }
+//    registerReceiver(mScreenBroadcastReceiver, screenBroadcastIntentFilter)
+//
+//    // Speed unit, bps or Bps
+//    val isSpeedUnitBits = config.getString(SettingsActivity.KEY_INDICATOR_SPEED_UNIT, "Bps") == "bps"
+//    mSpeed!!.setIsSpeedUnitBits(isSpeedUnitBits)
+//
+//    // Pass it to notification
+//    mIndicatorNotification!!.handleConfigChange(config)
+//  }
 
-    private void restartNotifying() {
-        mHandler.removeCallbacks(mHandlerRunnable);
-        mHandler.post(mHandlerRunnable);
-    }
-
-    private void handleConfigChange(Bundle config) {
-        // Show/Hide on lock screen
-        IntentFilter screenBroadcastIntentFilter = new IntentFilter();
-        screenBroadcastIntentFilter.addAction(Intent.ACTION_SCREEN_ON);
-        screenBroadcastIntentFilter.addAction(Intent.ACTION_SCREEN_OFF);
-
-        mNotificationOnLockScreen = config.getBoolean(SettingsActivity.KEY_NOTIFICATION_ON_LOCK_SCREEN, false);
-
-        if (!mNotificationOnLockScreen) {
-            screenBroadcastIntentFilter.addAction(Intent.ACTION_USER_PRESENT);
-            screenBroadcastIntentFilter.setPriority(999);
-        }
-
-        if (mNotificationCreated) {
-            unregisterReceiver(mScreenBroadcastReceiver);
-        }
-        registerReceiver(mScreenBroadcastReceiver, screenBroadcastIntentFilter);
-
-        // Speed unit, bps or Bps
-        boolean isSpeedUnitBits = config.getString(SettingsActivity.KEY_INDICATOR_SPEED_UNIT, "Bps").equals("bps");
-        mSpeed.setIsSpeedUnitBits(isSpeedUnitBits);
-
-        // Pass it to notification
-        mIndicatorNotification.handleConfigChange(config);
-    }
+  fun setActivityReference(activity: Activity) {
+    this.speedUpdateCallback = activity as SpeedShowActivity
+  }
 }

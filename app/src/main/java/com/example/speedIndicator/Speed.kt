@@ -1,97 +1,83 @@
-package com.example.speedIndicator;
+package com.example.speedIndicator
 
-import android.content.Context;
+import android.content.Context
+import java.util.*
 
-import java.util.Locale;
+class Speed(private val mContext: Context?) {
+  private var mTotalSpeed: Long = 0
+  private var mDownSpeed: Long = 0
+  private var mUpSpeed: Long = 0
+  var total = HumanSpeed()
+  @JvmField
+  var down = HumanSpeed()
+  @JvmField
+  var up = HumanSpeed()
+  private var mIsSpeedUnitBits = false
+  private fun updateHumanSpeeds() {
+    total.setSpeed(mTotalSpeed)
+    down.setSpeed(mDownSpeed)
+    up.setSpeed(mUpSpeed)
+  }
 
-final class Speed {
-    private long mTotalSpeed = 0;
-    private long mDownSpeed = 0;
-    private long mUpSpeed = 0;
-
-    HumanSpeed total = new HumanSpeed();
-    HumanSpeed down = new HumanSpeed();
-    HumanSpeed up = new HumanSpeed();
-
-    private boolean mIsSpeedUnitBits = false;
-
-    private Context mContext;
-
-    Speed(Context context) {
-        mContext = context;
-
-        updateHumanSpeeds();
+  fun calcSpeed(timeTaken: Long, downBytes: Long, upBytes: Long) {
+    var totalSpeed: Long = 0
+    var downSpeed: Long = 0
+    var upSpeed: Long = 0
+    val totalBytes = downBytes + upBytes
+    if (timeTaken > 0) {
+      totalSpeed = totalBytes * 1000 / timeTaken
+      downSpeed = downBytes * 1000 / timeTaken
+      upSpeed = upBytes * 1000 / timeTaken
     }
+    mTotalSpeed = totalSpeed
+    mDownSpeed = downSpeed
+    mUpSpeed = upSpeed
+    updateHumanSpeeds()
+  }
 
-    private void updateHumanSpeeds() {
-        total.setSpeed(mTotalSpeed);
-        down.setSpeed(mDownSpeed);
-        up.setSpeed(mUpSpeed);
+  fun getHumanSpeed(name: String?): HumanSpeed {
+    return when (name) {
+      "up" -> up
+      "down" -> down
+      else -> total
     }
+  }
 
-    void calcSpeed(long timeTaken, long downBytes, long upBytes) {
-        long totalSpeed = 0;
-        long downSpeed = 0;
-        long upSpeed = 0;
+  fun setIsSpeedUnitBits(isSpeedUnitBits: Boolean) {
+    mIsSpeedUnitBits = isSpeedUnitBits
+  }
 
-        long totalBytes = downBytes + upBytes;
-
-        if (timeTaken > 0) {
-            totalSpeed = totalBytes * 1000 / timeTaken;
-            downSpeed = downBytes * 1000 / timeTaken;
-            upSpeed = upBytes * 1000 / timeTaken;
+  inner class HumanSpeed {
+    @JvmField
+    var speedValue: String? = null
+    @JvmField
+    var speedUnit: String? = null
+    fun setSpeed(speed: Long) {
+      var speed = speed
+      if (mContext == null) return
+      if (mIsSpeedUnitBits) {
+        speed *= 8
+      }
+      if (speed < 1000000) {
+        speedUnit = mContext.getString(if (mIsSpeedUnitBits) R.string.kbps else R.string.kBps)
+        speedValue = (speed / 1000).toString()
+      } else if (speed >= 1000000) {
+        speedUnit = mContext.getString(if (mIsSpeedUnitBits) R.string.Mbps else R.string.MBps)
+        if (speed < 10000000) {
+          speedValue = String.format(Locale.ENGLISH, "%.1f", speed / 1000000.0)
+        } else if (speed < 100000000) {
+          speedValue = (speed / 1000000).toString()
+        } else {
+          speedValue = mContext.getString(R.string.plus99)
         }
-
-        mTotalSpeed = totalSpeed;
-        mDownSpeed = downSpeed;
-        mUpSpeed = upSpeed;
-
-        updateHumanSpeeds();
+      } else {
+        speedValue = mContext.getString(R.string.dash)
+        speedUnit = mContext.getString(R.string.dash)
+      }
     }
+  }
 
-    HumanSpeed getHumanSpeed(String name) {
-        switch (name) {
-            case "up":
-                return up;
-            case "down":
-                return down;
-            default:
-                return total;
-        }
-    }
-
-    void setIsSpeedUnitBits(boolean isSpeedUnitBits) {
-        mIsSpeedUnitBits = isSpeedUnitBits;
-    }
-
-    class HumanSpeed {
-        String speedValue;
-        String speedUnit;
-
-        private void setSpeed(long speed) {
-            if (mContext == null) return;
-
-            if (mIsSpeedUnitBits) {
-                speed *= 8;
-            }
-
-            if (speed < 1000000) {
-                this.speedUnit = mContext.getString(mIsSpeedUnitBits ? R.string.kbps : R.string.kBps);
-                this.speedValue = String.valueOf(speed / 1000);
-            } else if (speed >= 1000000) {
-                this.speedUnit = mContext.getString(mIsSpeedUnitBits ? R.string.Mbps : R.string.MBps);
-
-                if (speed < 10000000) {
-                    this.speedValue = String.format(Locale.ENGLISH, "%.1f", speed / 1000000.0);
-                } else if (speed < 100000000) {
-                    this.speedValue = String.valueOf(speed / 1000000);
-                } else {
-                    this.speedValue = mContext.getString(R.string.plus99);
-                }
-            } else {
-                this.speedValue = mContext.getString(R.string.dash);
-                this.speedUnit = mContext.getString(R.string.dash);
-            }
-        }
-    }
+  init {
+    updateHumanSpeeds()
+  }
 }

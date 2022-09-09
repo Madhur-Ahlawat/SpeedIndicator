@@ -2,9 +2,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
         xmlns:tools="http://schemas.android.com/tools"
         package="com.example.speedIndicator">
+
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-
 
     <application
             android:allowBackup="true"
@@ -17,38 +17,18 @@
             android:theme="@style/AppTheme"
             tools:targetApi="31">
         <activity
-                android:name="com.example.speedIndicator.settings.SettingsActivity"
-                android:exported="true">
+                android:name=".SpeedShowActivity"
+                android:exported="true"
+                android:launchMode="singleInstance">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-                <action android:name="android.intent.action.APPLICATION_PREFERENCES" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
 
         <service
-                android:name="com.example.speedIndicator.IndicatorService"
-                android:enabled="true"
-                android:exported="false"
-                android:process=":background" />
-
-        <receiver
-                android:name="com.example.speedIndicator.BootCompleteReceiver"
-                android:enabled="true"
-                android:exported="false">
-            <intent-filter android:priority="999">
-                <action android:name="android.intent.action.BOOT_COMPLETED" />
-            </intent-filter>
-        </receiver>
-
-        <receiver
-                android:name="com.example.speedIndicator.UpgradeReceiver"
-                android:enabled="true"
-                android:exported="false">
-            <intent-filter>
-                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
-            </intent-filter>
-        </receiver>
+                android:name=".IndicatorService"
+                android:exported="false"/>
     </application>
+
 </manifest>
